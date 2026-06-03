@@ -11,9 +11,12 @@ st.set_page_config(
 )
 
 
-@st.cache_resource
-def get_agent() -> Agent:
-    return Agent()
+def get_active_agent() -> Agent:
+    agent = st.session_state.get("agent")
+    if not isinstance(agent, Agent) or not hasattr(agent, "stream"):
+        agent = Agent()
+        st.session_state.agent = agent
+    return agent
 
 
 def init_state() -> None:
@@ -39,7 +42,7 @@ def render_sidebar() -> None:
 
         if st.button("Clear chat", use_container_width=True):
             st.session_state.messages = []
-            get_agent().reset()
+            st.session_state.agent = Agent()
             st.rerun()
 
 
@@ -77,7 +80,7 @@ def main() -> None:
 
 def stream_agent_response(prompt: str):
     try:
-        yield from get_agent().stream(prompt)
+        yield from get_active_agent().stream(prompt)
     except Exception as exc:
         yield f"Agent error: {exc}"
 
