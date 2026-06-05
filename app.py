@@ -2,6 +2,7 @@ import streamlit as st
 
 from agent import Agent
 from core.config import settings
+from thread_memory import get_or_create_default_thread_id, rotate_default_thread_id
 
 
 st.set_page_config(
@@ -12,11 +13,29 @@ st.set_page_config(
 
 
 def get_active_agent() -> Agent:
+    if "thread_id" not in st.session_state:
+        st.session_state.thread_id = get_or_create_default_thread_id()
+
     agent = st.session_state.get("agent")
-    if not isinstance(agent, Agent) or not hasattr(agent, "stream"):
-        agent = Agent()
+    if (
+        not isinstance(agent, Agent)
+        or not hasattr(agent, "stream")
+        or agent.thread_id != st.session_state.thread_id
+    ):
+        agent = create_agent(st.session_state.thread_id)
         st.session_state.agent = agent
     return agent
+
+
+def create_agent(thread_id: str) -> Agent:
+    try:
+        return Agent(thread_id=thread_id)
+    except TypeError as exc:
+        if "thread_id" not in str(exc):
+            raise
+        agent = Agent()
+        agent.thread_id = thread_id
+        return agent
 
 
 def init_state() -> None:
@@ -41,8 +60,10 @@ def render_sidebar() -> None:
         )
 
         if st.button("Clear chat", use_container_width=True):
+            get_active_agent().reset()
             st.session_state.messages = []
-            st.session_state.agent = Agent()
+            st.session_state.thread_id = rotate_default_thread_id()
+            st.session_state.agent = create_agent(st.session_state.thread_id)
             st.rerun()
 
 

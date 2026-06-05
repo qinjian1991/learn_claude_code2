@@ -28,6 +28,9 @@ dist/
 # Logs and local files
 *.log
 *.tmp
+logs/*.sqlite
+logs/*.sqlite-*
+logs/current_thread_id.txt
 
 # OS and editor files
 .DS_Store

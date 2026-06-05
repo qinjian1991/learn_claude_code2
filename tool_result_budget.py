@@ -1,5 +1,3 @@
-import json
-import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -12,14 +10,10 @@ MAX_TOOL_RESULT_CHARS = 200_000
 TOOL_RESULT_OUTPUT_DIR = WORKDIR / "logs" / "tool_results"
 
 
-context_logger = logging.getLogger("agent.context")
-
-
 def tool_result_budget(messages: list[BaseMessage]) -> list[BaseMessage]:
     TOOL_RESULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     budgeted_messages = []
-    budgeted_count = 0
 
     for index, message in enumerate(messages):
         if message.type != "tool":
@@ -34,22 +28,6 @@ def tool_result_budget(messages: list[BaseMessage]) -> list[BaseMessage]:
         full_output_path = save_full_tool_result(message, content)
         budgeted_messages.append(
             compact_tool_result_message(message, content, full_output_path)
-        )
-        budgeted_count += 1
-
-    if budgeted_count:
-        context_logger.debug(
-            "Tool result budget applied\n%s",
-            json.dumps(
-                {
-                    "max_tool_result_chars": MAX_TOOL_RESULT_CHARS,
-                    "budgeted_tool_message_count": budgeted_count,
-                    "output_dir": str(TOOL_RESULT_OUTPUT_DIR),
-                },
-                ensure_ascii=False,
-                indent=2,
-                default=str,
-            ),
         )
 
     return budgeted_messages

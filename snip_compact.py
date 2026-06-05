@@ -1,14 +1,8 @@
-import json
-import logging
-
 from langchain_core.messages import BaseMessage, HumanMessage
 
 
 MAX_CONTEXT_MESSAGES = 50
 KEEP_HEAD_MESSAGES = 3
-
-
-context_logger = logging.getLogger("agent.context")
 
 
 def serialize_message(message: BaseMessage) -> dict:
@@ -85,23 +79,6 @@ def remove_incomplete_tool_pairs(messages: list[BaseMessage]) -> list[BaseMessag
         if tool_call_id not in tool_call_owner_by_id:
             indexes_to_remove.update(indexes)
 
-    if indexes_to_remove:
-        context_logger.debug(
-            "Removed incomplete tool pairs\n%s",
-            json.dumps(
-                {
-                    "removed_indexes": sorted(indexes_to_remove),
-                    "removed_messages": [
-                        serialize_message(messages[index])
-                        for index in sorted(indexes_to_remove)
-                    ],
-                },
-                ensure_ascii=False,
-                indent=2,
-                default=str,
-            ),
-        )
-
     return [
         message
         for index, message in enumerate(messages)
@@ -120,23 +97,5 @@ def snip_compact(messages: list[BaseMessage]) -> list[BaseMessage]:
     )
     compacted = messages[:KEEP_HEAD_MESSAGES] + [snipped_message] + messages[-tail_count:]
     compacted = remove_incomplete_tool_pairs(compacted)
-
-    context_logger.debug(
-        "Snip compact applied\n%s",
-        json.dumps(
-            {
-                "max_context_messages": MAX_CONTEXT_MESSAGES,
-                "keep_head_messages": KEEP_HEAD_MESSAGES,
-                "before_count": len(messages),
-                "after_count": len(compacted),
-                "snipped_middle_count": snipped_count,
-                "removed_count": len(messages) - len(compacted),
-                "kept_message_types": [message.type for message in compacted],
-            },
-            ensure_ascii=False,
-            indent=2,
-            default=str,
-        ),
-    )
 
     return compacted

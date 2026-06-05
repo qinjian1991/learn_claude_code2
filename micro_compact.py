@@ -1,14 +1,8 @@
-import json
-import logging
-
 from langchain_core.messages import BaseMessage
 
 
 KEEP_LATEST_TOOL_BATCHES = 3
 COMPACTED_TOOL_RESULT_CONTENT = "[Earlier tool result compacted. Re-run if needed.]"
-
-
-context_logger = logging.getLogger("agent.context")
 
 
 def micro_compact_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
@@ -22,9 +16,6 @@ def micro_compact_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
         for tool_call_id in batch["tool_call_ids"]
     }
     compacted_messages = []
-    compacted_count = 0
-    compacted_indexes = []
-
     for index, message in enumerate(messages):
         if message.type != "tool":
             compacted_messages.append(message)
@@ -36,24 +27,6 @@ def micro_compact_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
             continue
 
         compacted_messages.append(compact_tool_message(message))
-        compacted_count += 1
-        compacted_indexes.append(index)
-
-    context_logger.debug(
-        "Micro compact applied to tool messages\n%s",
-        json.dumps(
-            {
-                "keep_latest_tool_batches": KEEP_LATEST_TOOL_BATCHES,
-                "tool_batch_count": len(tool_batches),
-                "kept_tool_call_ids": sorted(tool_call_ids_to_keep),
-                "compacted_tool_message_count": compacted_count,
-                "compacted_tool_message_indexes": compacted_indexes,
-            },
-            ensure_ascii=False,
-            indent=2,
-            default=str,
-        ),
-    )
 
     return compacted_messages
 

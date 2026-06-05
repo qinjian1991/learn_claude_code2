@@ -15,7 +15,7 @@ LOGGING_CONFIG = {
             "format": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
-        "context_debug": {
+        "messages": {
             "format": "%(asctime)s | %(levelname)s | %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
@@ -35,11 +35,11 @@ LOGGING_CONFIG = {
             "backupCount": 5,
             "encoding": "utf-8",
         },
-        "agent_context_file": {
+        "model_messages_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "DEBUG",
-            "formatter": "context_debug",
-            "filename": str(LOG_DIR / "agent_context_debug.log"),
+            "formatter": "messages",
+            "filename": str(LOG_DIR / "model_messages.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 10,
             "encoding": "utf-8",
@@ -53,7 +53,7 @@ LOGGING_CONFIG = {
         },
         "agent.context": {
             "level": "DEBUG",
-            "handlers": ["agent_context_file"],
+            "handlers": ["model_messages_file"],
             "propagate": False,
         },
     },
