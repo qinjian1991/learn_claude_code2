@@ -16,6 +16,8 @@ class AgentState(TypedDict, total=False):
     reactive_compact_count: int
     model_requested_summary_count: int
     last_compacted_turn: int | None
+    tool_permission_decisions: list[dict]
+    tool_permission_reasons: dict[str, str]
 
 
 class RuntimeContext(TypedDict):

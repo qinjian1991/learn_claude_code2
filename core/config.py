@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     model_temperature: float = 0
     context_token_threshold: int = 120_000
     reactive_compact_retry_count: int = 1
-    checkpoint_db_path: str = "logs/agent_checkpoints.sqlite"
-    store_db_path: str = "logs/agent_store.sqlite"
-    thread_id_path: str = "logs/current_thread_id.txt"
+    checkpoint_db_path: str = "data/agent_checkpoints.sqlite"
+    store_db_path: str = "data/agent_store.sqlite"
+    thread_id_path: str = "data/current_thread_id.txt"
     user_id: str = "local-user"
     project_id: str = "learn_claude_code2"
 

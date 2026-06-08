@@ -4,6 +4,7 @@ import logging
 from core.config import settings
 from core.constants import WORKDIR
 from langchain_core.messages import BaseMessage, HumanMessage
+from langgraph.types import Command
 
 from agent.graph import GRAPH
 from agent.memory_namespaces import memory_categories, namespace_for_category
@@ -45,13 +46,36 @@ class Agent:
         messages = list(state_values.get("messages") or [])
         messages.append(HumanMessage(content=message))
         logger.info("User message received; message length: %s", len(message))
-        with GRAPH.stream_events(
+        yield from self._stream_graph_input(
             {
                 **state_meta,
                 "messages": messages,
                 "conversation_turn": state_meta["conversation_turn"] + 1,
                 "last_context_action": "user_message",
-            },
+            }
+        )
+
+    def resume_tool_approval(self, approved: bool) -> Iterator[str]:
+        logger.info("Resuming tool approval; approved=%s", approved)
+        yield from self._stream_graph_input(
+            Command(resume={"approved": approved})
+        )
+
+    def get_pending_interrupt(self) -> dict | None:
+        state = GRAPH.get_state(self.config)
+        interrupts = getattr(state, "interrupts", None) or ()
+        if not interrupts:
+            return None
+
+        value = interrupts[0].value
+        if isinstance(value, dict):
+            return value
+
+        return {"type": "unknown", "message": str(value), "tool_calls": []}
+
+    def _stream_graph_input(self, graph_input) -> Iterator[str]:
+        with GRAPH.stream_events(
+            graph_input,
             self.config,
             context=self.runtime_context,
             version="v3",
@@ -63,10 +87,13 @@ class Agent:
 
             output = run.output
             if output:
-                logger.info(
-                    "Agent stream completed; stored messages: %s",
-                    len(output["messages"]),
-                )
+                if "__interrupt__" in output:
+                    logger.info("Agent stream interrupted for approval.")
+                elif "messages" in output:
+                    logger.info(
+                        "Agent stream completed; stored messages: %s",
+                        len(output["messages"]),
+                    )
 
     def reset(self) -> None:
         CHECKPOINTER.delete_thread(self.thread_id)

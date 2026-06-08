@@ -73,6 +73,47 @@ def render_chat_history() -> None:
             st.markdown(message["content"])
 
 
+def render_pending_tool_approval() -> bool:
+    agent = get_active_agent()
+    pending = agent.get_pending_interrupt()
+    if not pending or pending.get("type") != "tool_approval":
+        return False
+
+    st.warning(pending.get("message") or "Approve these tool calls?")
+    for index, tool_call in enumerate(pending.get("tool_calls") or [], start=1):
+        tool_name = tool_call.get("tool_name") or "unknown"
+        reason = tool_call.get("reason") or "Approval required."
+        risk_summary = tool_call.get("risk_summary") or ""
+        with st.expander(f"{index}. {tool_name}", expanded=True):
+            st.markdown(f"**Reason:** {reason}")
+            if risk_summary:
+                st.code(risk_summary, language="text")
+
+    approve_column, reject_column = st.columns(2)
+    with approve_column:
+        approve = st.button("Approve", type="primary", use_container_width=True)
+    with reject_column:
+        reject = st.button("Reject", use_container_width=True)
+
+    if approve or reject:
+        approved = bool(approve)
+        st.session_state.messages.append(
+            {
+                "role": "user",
+                "content": "Approved tool calls." if approved else "Rejected tool calls.",
+            }
+        )
+        with st.chat_message("assistant"):
+            response = st.write_stream(agent.resume_tool_approval(approved))
+        if response:
+            st.session_state.messages.append(
+                {"role": "assistant", "content": response}
+            )
+        st.rerun()
+
+    return True
+
+
 def main() -> None:
     init_state()
     render_sidebar()
@@ -85,6 +126,9 @@ def main() -> None:
 
     render_chat_history()
 
+    if render_pending_tool_approval():
+        return
+
     prompt = st.chat_input("Ask the agent...")
     if not prompt:
         return
@@ -96,7 +140,11 @@ def main() -> None:
     with st.chat_message("assistant"):
         response = st.write_stream(stream_agent_response(prompt))
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    if response:
+        st.session_state.messages.append({"role": "assistant", "content": response})
+
+    if get_active_agent().get_pending_interrupt():
+        st.rerun()
 
 
 def stream_agent_response(prompt: str):

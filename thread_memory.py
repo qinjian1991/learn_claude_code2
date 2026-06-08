@@ -5,7 +5,7 @@ from core.constants import WORKDIR
 from core.config import settings
 
 
-DEFAULT_THREAD_ID_PATH = "logs/current_thread_id.txt"
+DEFAULT_THREAD_ID_PATH = "data/current_thread_id.txt"
 
 
 def get_thread_id_path() -> Path:

@@ -4,6 +4,7 @@ import logging
 from core.config import settings
 from langchain_core.messages import SystemMessage, ToolMessage
 from langgraph.runtime import Runtime
+from langgraph.types import interrupt
 
 from agent.logging_utils import log_messages_snapshot
 from agent.memory import load_long_term_memories
@@ -12,6 +13,12 @@ from agent.memory_extraction import extract_long_term_memories
 from agent.model import BASE_MODEL, MODEL
 from agent.prompt import build_system_prompt
 from agent.state import AgentState, RuntimeContext, state_snapshot
+from agent.tools.permissions import (
+    apply_approval_response,
+    approval_payload,
+    decision_by_tool_call_id,
+    evaluate_tool_permissions,
+)
 from agent.tools import SPECIAL_PANORAMA_SUMMARY_TOOL, TOOLS, TOOLS_BY_NAME
 from micro_compact import micro_compact_messages
 from panorama_summary import (
@@ -154,6 +161,7 @@ def call_tools(state: AgentState) -> dict:
     last_message = state["messages"][-1]
     tool_messages = []
     state_meta = state_snapshot(state)
+    decisions = decision_by_tool_call_id(state.get("tool_permission_decisions") or [])
 
     for tool_call in getattr(last_message, "tool_calls", None) or []:
         tool_name = tool_call["name"]
@@ -191,7 +199,43 @@ def call_tools(state: AgentState) -> dict:
         tool_name = tool_call["name"]
         tool_args = tool_call.get("args") or {}
         tool_call_id = tool_call["id"]
-        selected_tool = TOOLS_BY_NAME[tool_name]
+        decision = decisions.get(tool_call_id)
+        action = (decision or {}).get("action")
+
+        if action in {"deny", "rejected"}:
+            reason = (decision or {}).get("reason") or "Tool call was not allowed."
+            content = f"Tool call {action}: {reason}"
+            tool_messages.append(
+                ToolMessage(
+                    content=content,
+                    name=tool_name,
+                    tool_call_id=tool_call_id,
+                )
+            )
+            continue
+
+        if action != "allow":
+            content = "Tool call denied: no permission decision was available."
+            tool_messages.append(
+                ToolMessage(
+                    content=content,
+                    name=tool_name,
+                    tool_call_id=tool_call_id,
+                )
+            )
+            continue
+
+        selected_tool = TOOLS_BY_NAME.get(tool_name)
+        if selected_tool is None:
+            content = f"Tool error: unknown tool {tool_name}"
+            tool_messages.append(
+                ToolMessage(
+                    content=content,
+                    name=tool_name,
+                    tool_call_id=tool_call_id,
+                )
+            )
+            continue
 
         try:
             content = selected_tool.invoke(tool_args)
@@ -207,14 +251,58 @@ def call_tools(state: AgentState) -> dict:
         )
 
     logger.info("Tool node finished; tool messages: %s", len(tool_messages))
-    return {"messages": state["messages"] + tool_messages}
+    return {
+        "messages": state["messages"] + tool_messages,
+        "tool_permission_decisions": [],
+        "tool_permission_reasons": {},
+    }
+
+
+def check_tool_permissions(state: AgentState) -> dict:
+    last_message = state["messages"][-1]
+    tool_calls = getattr(last_message, "tool_calls", None) or []
+    decisions = evaluate_tool_permissions(tool_calls)
+    approval_required = [
+        decision
+        for decision in decisions
+        if decision["action"] == "approval_required"
+    ]
+
+    if approval_required:
+        payload = approval_payload(decisions)
+        logger.info(
+            "Tool approval required; tool calls: %s",
+            len(payload["tool_calls"]),
+        )
+        approval_response = interrupt(payload)
+        decisions = apply_approval_response(decisions, approval_response)
+
+    reasons = {
+        decision["tool_call_id"]: decision["reason"]
+        for decision in decisions
+    }
+
+    denied_count = sum(
+        1
+        for decision in decisions
+        if decision["action"] in {"deny", "rejected"}
+    )
+    logger.info(
+        "Tool permission check finished; decisions=%s denied_or_rejected=%s",
+        len(decisions),
+        denied_count,
+    )
+    return {
+        "tool_permission_decisions": decisions,
+        "tool_permission_reasons": reasons,
+    }
 
 
 def should_continue(state: AgentState) -> str:
     last_message = state["messages"][-1]
     if getattr(last_message, "tool_calls", None):
-        logger.info("Routing to tools")
-        return "tools"
+        logger.info("Routing to tool permission check")
+        return "check_tool_permissions"
     logger.info("Routing to agent loop exit")
     return "exit_agent_loop"
 

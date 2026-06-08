@@ -25,12 +25,11 @@ build/
 dist/
 *.egg-info/
 
-# Logs and local files
+# Logs and local runtime files
 *.log
 *.tmp
-logs/*.sqlite
-logs/*.sqlite-*
-logs/current_thread_id.txt
+data/
+tool_results/
 
 # OS and editor files
 .DS_Store

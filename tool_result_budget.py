@@ -7,7 +7,7 @@ from core.constants import WORKDIR
 
 
 MAX_TOOL_RESULT_CHARS = 200_000
-TOOL_RESULT_OUTPUT_DIR = WORKDIR / "logs" / "tool_results"
+TOOL_RESULT_OUTPUT_DIR = WORKDIR / "tool_results"
 
 
 def tool_result_budget(messages: list[BaseMessage]) -> list[BaseMessage]:
