@@ -1,5 +1,6 @@
 from itertools import count
 import logging
+import time
 
 from core.config import settings
 from langchain_core.messages import SystemMessage, ToolMessage
@@ -33,6 +34,139 @@ from tool_result_budget import tool_result_budget
 
 logger = logging.getLogger("agent")
 MODEL_EXCHANGE_COUNTER = count(1)
+MAX_TOKENS_ERROR_KEYWORDS = (
+    "max_tokens",
+    "max token",
+    "maximum tokens",
+    "maximum output",
+    "output token",
+    "output limit",
+)
+TRANSIENT_MODEL_ERROR_KEYWORDS = (
+    "rate limit",
+    "rate_limit",
+    "too many requests",
+    "overloaded",
+    "temporarily unavailable",
+    "service unavailable",
+    "internal server error",
+    "bad gateway",
+    "gateway timeout",
+    "timeout",
+    "timed out",
+    "connection",
+    "network",
+    "api connection",
+)
+TRANSIENT_MODEL_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504, 529}
+
+
+def is_max_tokens_error(exc: Exception) -> bool:
+    text = f"{exc.__class__.__name__}: {exc}".lower()
+    return any(keyword in text for keyword in MAX_TOKENS_ERROR_KEYWORDS)
+
+
+def exception_status_code(exc: Exception) -> int | None:
+    for value in (
+        getattr(exc, "status_code", None),
+        getattr(getattr(exc, "response", None), "status_code", None),
+    ):
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+
+    return None
+
+
+def is_transient_model_error(exc: Exception) -> bool:
+    status_code = exception_status_code(exc)
+    if status_code in TRANSIENT_MODEL_STATUS_CODES:
+        return True
+
+    text = f"{exc.__class__.__name__}: {exc}".lower()
+    if any(f" {code} " in f" {text} " for code in TRANSIENT_MODEL_STATUS_CODES):
+        return True
+
+    return any(keyword in text for keyword in TRANSIENT_MODEL_ERROR_KEYWORDS)
+
+
+def retry_after_seconds(exc: Exception) -> float | None:
+    headers = getattr(exc, "headers", None)
+    if headers is None:
+        response = getattr(exc, "response", None)
+        headers = getattr(response, "headers", None)
+    if not headers:
+        return None
+
+    retry_after = headers.get("retry-after") or headers.get("Retry-After")
+    if retry_after is None:
+        return None
+
+    try:
+        return max(float(retry_after), 0)
+    except (TypeError, ValueError):
+        return None
+
+
+def transient_retry_delay(exc: Exception, retry_index: int) -> float:
+    retry_after = retry_after_seconds(exc)
+    if retry_after is not None:
+        return min(retry_after, settings.model_transient_retry_max_seconds)
+
+    initial_delay = max(settings.model_transient_retry_initial_seconds, 0)
+    delay = initial_delay * (2 ** retry_index)
+    return min(delay, settings.model_transient_retry_max_seconds)
+
+
+def invoke_model_with_transient_retries(messages, exchange_id: int):
+    retry_count = max(settings.model_transient_retry_count, 0)
+    max_attempts = retry_count + 1
+
+    for transient_attempt in range(max_attempts):
+        try:
+            return MODEL.invoke(messages)
+        except Exception as exc:
+            if not is_transient_model_error(exc) or transient_attempt >= retry_count:
+                if is_transient_model_error(exc):
+                    logger.exception(
+                        "Model transient error persisted after %s retries: %s",
+                        retry_count,
+                        exc,
+                    )
+                    raise RuntimeError(
+                        "Model call failed after retrying a transient provider error "
+                        f"({exception_status_code(exc) or exc.__class__.__name__})."
+                    ) from exc
+                raise
+
+            delay = transient_retry_delay(exc, transient_attempt)
+            logger.warning(
+                "Model exchange #%s transient error; retrying %s/%s in %.1fs: %s",
+                exchange_id,
+                transient_attempt + 1,
+                retry_count,
+                delay,
+                exc,
+            )
+            if delay > 0:
+                time.sleep(delay)
+
+
+def model_stop_reason(response) -> str | None:
+    response_metadata = getattr(response, "response_metadata", None) or {}
+    stop_reason = response_metadata.get("stop_reason")
+    if stop_reason:
+        return str(stop_reason)
+
+    additional_kwargs = getattr(response, "additional_kwargs", None) or {}
+    stop_reason = additional_kwargs.get("stop_reason")
+    if stop_reason:
+        return str(stop_reason)
+
+    return None
 
 
 def prepare_model_input(state: AgentState, runtime: Runtime[RuntimeContext]) -> dict:
@@ -107,10 +241,24 @@ def invoke_model(state: AgentState) -> dict:
         log_messages_snapshot(f"Model exchange #{exchange_id} {label}", messages)
 
         try:
-            response = MODEL.invoke(messages)
+            response = invoke_model_with_transient_retries(messages, exchange_id)
             break
         except Exception as exc:
             if not is_context_error(exc) or attempt >= reactive_retry_count:
+                if is_max_tokens_error(exc):
+                    logger.exception(
+                        "Model call failed with a max_tokens-related error. "
+                        "Current MODEL_MAX_TOKENS=%s.",
+                        settings.model_max_tokens,
+                    )
+                    raise RuntimeError(
+                        "Model call failed with a max_tokens-related error. "
+                        "Try lowering MODEL_MAX_TOKENS if the provider rejects the "
+                        "request, or raising it if the response is being cut short. "
+                        f"Current value: {settings.model_max_tokens}."
+                    ) from exc
+
+                logger.exception("Model call failed without a recoverable context error")
                 raise
 
             logger.info(
@@ -147,6 +295,13 @@ def process_model_response(state: AgentState) -> dict:
     exchange_id = state["model_exchange_id"]
 
     tool_calls = getattr(response, "tool_calls", None) or []
+    if model_stop_reason(response) == "max_tokens":
+        logger.warning(
+            "Model response stopped because max_tokens was reached. "
+            "Current MODEL_MAX_TOKENS=%s; response may be incomplete.",
+            settings.model_max_tokens,
+        )
+
     logger.info("Model response received; tool calls: %s", len(tool_calls))
 
     log_messages_snapshot(f"Model exchange #{exchange_id} response message", [response])

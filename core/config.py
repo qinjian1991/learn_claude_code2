@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     anthropic_base_url: str | None = None
     anthropic_model: str = "claude-sonnet-4-5"
     model_temperature: float = 0
+    model_max_tokens: int | None = 4096
+    model_transient_retry_count: int = 3
+    model_transient_retry_initial_seconds: float = 1.0
+    model_transient_retry_max_seconds: float = 12.0
     context_token_threshold: int = 120_000
     reactive_compact_retry_count: int = 1
     checkpoint_db_path: str = "data/agent_checkpoints.sqlite"
