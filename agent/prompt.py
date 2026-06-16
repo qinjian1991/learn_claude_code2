@@ -1,4 +1,5 @@
 from agent.state import RuntimeContext
+from agent.skills import build_skill_directory_section
 
 
 PROMPT_SECTIONS = {
@@ -18,6 +19,7 @@ def build_system_prompt(
 
     sections.append(PROMPT_SECTIONS["identity"])
     sections.append(f"Working directory: {runtime_context['workspace']}")
+    sections.append(build_skill_directory_section())
     if long_term_memories:
         sections.append("Long-term memory:\n" + "\n".join(long_term_memories))
     sections.append(PROMPT_SECTIONS["context_compaction"])

@@ -37,9 +37,10 @@ class ToolPermissionPolicyTest(unittest.TestCase):
         self.assertIn("powershell", registered_tools)
         self.assertNotIn("read_file", registered_tools)
         self.assertNotIn("glob", registered_tools)
+        self.assertNotIn("load_skill", registered_tools)
 
-    def test_read_file_and_glob_are_allowed(self):
-        for name in ("read_file", "glob"):
+    def test_read_only_tools_are_allowed(self):
+        for name in ("read_file", "glob", "load_skill"):
             decision = evaluate_tool_permission(tool_call(name))
             self.assertEqual(decision["action"], "allow")
 
