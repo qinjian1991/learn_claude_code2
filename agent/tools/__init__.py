@@ -3,6 +3,7 @@ from agent.tools.glob import glob_files
 from agent.tools.panorama_summary import request_panorama_summary
 from agent.tools.powershell import powershell
 from agent.tools.read_file import read_file
+from agent.tools.spawn_subagent import spawn_subagent
 from agent.tools.registry import (
     SPECIAL_PANORAMA_SUMMARY_TOOL,
     TOOLS,
@@ -20,5 +21,6 @@ __all__ = [
     "powershell",
     "read_file",
     "request_panorama_summary",
+    "spawn_subagent",
     "write_file",
 ]
