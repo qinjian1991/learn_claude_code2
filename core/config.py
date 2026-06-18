@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     mcp_config_path: str = "mcp.json"
     mcp_discovery_timeout_seconds: float = 10.0
     mcp_tool_timeout_seconds: float = 60.0
+    task_dir: str = ".task"
+    task_graph_path: str = ".task/tasks.json"
     user_id: str = "local-user"
     project_id: str = "learn_claude_code2"
 

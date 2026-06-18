@@ -6,6 +6,7 @@ from agent.tools.panorama_summary import request_panorama_summary
 from agent.tools.powershell import powershell
 from agent.tools.read_file import read_file
 from agent.tools.spawn_subagent import spawn_subagent
+from agent.tools.task_tools import task_claim, task_complete, task_create, task_list
 from agent.tools.todo_write import run_todo_write
 from agent.tools.write_file import write_file
 
@@ -19,6 +20,10 @@ LOCAL_TOOLS = [
     edit_file,
     glob_files,
     spawn_subagent,
+    task_list,
+    task_create,
+    task_claim,
+    task_complete,
     request_panorama_summary,
     run_todo_write,
 ]

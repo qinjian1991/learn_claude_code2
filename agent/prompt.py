@@ -1,5 +1,6 @@
 from agent.state import RuntimeContext
 from agent.skills import build_skill_directory_section
+from agent.task_store import render_task_graph_summary
 from agent.todos import render_current_todos
 
 
@@ -22,6 +23,7 @@ def build_system_prompt(
     sections.append(PROMPT_SECTIONS["identity"])
     sections.append(f"Working directory: {runtime_context['workspace']}")
     sections.append(render_current_todos(current_todos))
+    sections.append(render_task_graph_summary())
     sections.append(build_skill_directory_section())
     if long_term_memories:
         sections.append("Long-term memory:\n" + "\n".join(long_term_memories))

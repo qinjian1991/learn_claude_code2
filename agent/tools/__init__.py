@@ -5,6 +5,7 @@ from agent.tools.panorama_summary import request_panorama_summary
 from agent.tools.powershell import powershell
 from agent.tools.read_file import read_file
 from agent.tools.spawn_subagent import spawn_subagent
+from agent.tools.task_tools import task_claim, task_complete, task_create, task_list
 from agent.tools.todo_write import run_todo_write
 from agent.tools.registry import (
     LOCAL_TOOLS,
@@ -27,6 +28,10 @@ __all__ = [
     "read_file",
     "request_panorama_summary",
     "spawn_subagent",
+    "task_claim",
+    "task_complete",
+    "task_create",
+    "task_list",
     "run_todo_write",
     "write_file",
 ]

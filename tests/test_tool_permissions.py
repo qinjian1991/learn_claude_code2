@@ -39,9 +39,22 @@ class ToolPermissionPolicyTest(unittest.TestCase):
         self.assertNotIn("glob", registered_tools)
         self.assertNotIn("load_skill", registered_tools)
         self.assertNotIn("run_todo_write", registered_tools)
+        self.assertNotIn("task_list", registered_tools)
+        self.assertNotIn("task_create", registered_tools)
+        self.assertNotIn("task_claim", registered_tools)
+        self.assertNotIn("task_complete", registered_tools)
 
     def test_read_only_tools_are_allowed(self):
-        for name in ("read_file", "glob", "load_skill", "run_todo_write"):
+        for name in (
+            "read_file",
+            "glob",
+            "load_skill",
+            "run_todo_write",
+            "task_list",
+            "task_create",
+            "task_claim",
+            "task_complete",
+        ):
             decision = evaluate_tool_permission(tool_call(name))
             self.assertEqual(decision["action"], "allow")
 

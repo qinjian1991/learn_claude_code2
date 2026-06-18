@@ -30,6 +30,7 @@ dist/
 *.tmp
 data/
 tool_results/
+.task/
 
 # OS and editor files
 .DS_Store
