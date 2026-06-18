@@ -5,6 +5,7 @@ from agent.tools.mcp_adapter import discover_mcp_tools
 from agent.tools.panorama_summary import request_panorama_summary
 from agent.tools.powershell import powershell
 from agent.tools.read_file import read_file
+from agent.tools.spawn_subagent import spawn_subagent
 from agent.tools.todo_write import run_todo_write
 from agent.tools.write_file import write_file
 
@@ -17,6 +18,7 @@ LOCAL_TOOLS = [
     write_file,
     edit_file,
     glob_files,
+    spawn_subagent,
     request_panorama_summary,
     run_todo_write,
 ]

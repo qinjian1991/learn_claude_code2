@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     model_transient_retry_max_seconds: float = 12.0
     context_token_threshold: int = 120_000
     reactive_compact_retry_count: int = 1
+    subagent_default_max_turns: int = 5
+    subagent_max_turns: int = 10
     checkpoint_db_path: str = "data/agent_checkpoints.sqlite"
     store_db_path: str = "data/agent_store.sqlite"
     thread_id_path: str = "data/current_thread_id.txt"
