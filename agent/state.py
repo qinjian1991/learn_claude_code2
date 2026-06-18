@@ -18,6 +18,9 @@ class AgentState(TypedDict, total=False):
     last_compacted_turn: int | None
     tool_permission_decisions: list[dict]
     tool_permission_reasons: dict[str, str]
+    current_todos: list[dict]
+    todo_update_count: int
+    last_todo_update_turn: int | None
 
 
 class RuntimeContext(TypedDict):
@@ -43,4 +46,7 @@ def state_snapshot(state: AgentState | dict) -> dict:
             "model_requested_summary_count",
         ),
         "last_compacted_turn": state.get("last_compacted_turn"),
+        "current_todos": list(state.get("current_todos") or []),
+        "todo_update_count": state_counter(state, "todo_update_count"),
+        "last_todo_update_turn": state.get("last_todo_update_turn"),
     }

@@ -14,6 +14,7 @@ from agent.memory_extraction import extract_long_term_memories
 from agent.model import BASE_MODEL, MODEL
 from agent.prompt import build_system_prompt
 from agent.state import AgentState, RuntimeContext, state_snapshot
+from agent.todos import normalize_todos, todo_update_summary
 from agent.tools.permissions import (
     apply_approval_response,
     approval_payload,
@@ -21,6 +22,7 @@ from agent.tools.permissions import (
     evaluate_tool_permissions,
 )
 from agent.tools import SPECIAL_PANORAMA_SUMMARY_TOOL, TOOLS, TOOLS_BY_NAME
+from agent.tools.todo_write import run_todo_write
 from micro_compact import micro_compact_messages
 from panorama_summary import (
     create_panorama_summary_messages,
@@ -33,6 +35,7 @@ from tool_result_budget import tool_result_budget
 
 
 logger = logging.getLogger("agent")
+TODO_WRITE_TOOL = run_todo_write.name
 MODEL_EXCHANGE_COUNTER = count(1)
 MAX_TOKENS_ERROR_KEYWORDS = (
     "max_tokens",
@@ -171,8 +174,12 @@ def model_stop_reason(response) -> str | None:
 
 def prepare_model_input(state: AgentState, runtime: Runtime[RuntimeContext]) -> dict:
     long_term_memories = load_long_term_memories(runtime, state["messages"])
-    system_prompt = build_system_prompt(runtime.context, long_term_memories)
     state_meta = state_snapshot(state)
+    system_prompt = build_system_prompt(
+        runtime.context,
+        long_term_memories,
+        current_todos=state_meta["current_todos"],
+    )
 
     compacted_messages = tool_result_budget(state["messages"])
     compacted_messages = snip_compact(compacted_messages)
@@ -317,6 +324,8 @@ def call_tools(state: AgentState) -> dict:
     tool_messages = []
     state_meta = state_snapshot(state)
     decisions = decision_by_tool_call_id(state.get("tool_permission_decisions") or [])
+    todo_update = None
+    todo_update_count = state_meta["todo_update_count"]
 
     for tool_call in getattr(last_message, "tool_calls", None) or []:
         tool_name = tool_call["name"]
@@ -380,6 +389,25 @@ def call_tools(state: AgentState) -> dict:
             )
             continue
 
+        if tool_name == TODO_WRITE_TOOL:
+            try:
+                todos = normalize_todos(tool_args.get("todos"))
+            except ValueError as exc:
+                content = f"Tool error: {exc}"
+            else:
+                todo_update = todos
+                todo_update_count += 1
+                content = todo_update_summary(todos)
+
+            tool_messages.append(
+                ToolMessage(
+                    content=content,
+                    name=tool_name,
+                    tool_call_id=tool_call_id,
+                )
+            )
+            continue
+
         selected_tool = TOOLS_BY_NAME.get(tool_name)
         if selected_tool is None:
             content = f"Tool error: unknown tool {tool_name}"
@@ -406,11 +434,20 @@ def call_tools(state: AgentState) -> dict:
         )
 
     logger.info("Tool node finished; tool messages: %s", len(tool_messages))
-    return {
+    result = {
         "messages": state["messages"] + tool_messages,
         "tool_permission_decisions": [],
         "tool_permission_reasons": {},
     }
+    if todo_update is not None:
+        result.update(
+            {
+                "current_todos": todo_update,
+                "todo_update_count": todo_update_count,
+                "last_todo_update_turn": state_meta["conversation_turn"],
+            }
+        )
+    return result
 
 
 def check_tool_permissions(state: AgentState) -> dict:

@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     checkpoint_db_path: str = "data/agent_checkpoints.sqlite"
     store_db_path: str = "data/agent_store.sqlite"
     thread_id_path: str = "data/current_thread_id.txt"
+    mcp_config_path: str = "mcp.json"
+    mcp_discovery_timeout_seconds: float = 10.0
+    mcp_tool_timeout_seconds: float = 60.0
     user_id: str = "local-user"
     project_id: str = "learn_claude_code2"
 

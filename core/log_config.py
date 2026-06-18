@@ -1,10 +1,22 @@
 from logging.config import dictConfig
+from logging.handlers import RotatingFileHandler
 
 from core.constants import WORKDIR
 
 
 LOG_DIR = WORKDIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
+
+
+class ResilientRotatingFileHandler(RotatingFileHandler):
+    def emit(self, record):
+        try:
+            super().emit(record)
+        except OSError:
+            return
+
+    def handleError(self, record):
+        return
 
 
 LOGGING_CONFIG = {
@@ -27,22 +39,24 @@ LOGGING_CONFIG = {
             "formatter": "default",
         },
         "agent_file": {
-            "class": "logging.handlers.RotatingFileHandler",
+            "class": "core.log_config.ResilientRotatingFileHandler",
             "level": "INFO",
             "formatter": "default",
             "filename": str(LOG_DIR / "agent.log"),
             "maxBytes": 1024 * 1024,
             "backupCount": 5,
             "encoding": "utf-8",
+            "delay": True,
         },
         "model_messages_file": {
-            "class": "logging.handlers.RotatingFileHandler",
+            "class": "core.log_config.ResilientRotatingFileHandler",
             "level": "DEBUG",
             "formatter": "messages",
             "filename": str(LOG_DIR / "model_messages.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 10,
             "encoding": "utf-8",
+            "delay": True,
         },
     },
     "loggers": {
